@@ -1,0 +1,57 @@
+{
+  "name": "@wipsquare/vies-vat-check",
+  "version": "1.0.0",
+  "description": "TypeScript client for validating EU VAT numbers with the VIES API.",
+  "keywords": [
+    "vat",
+    "vies",
+    "eu",
+    "tax",
+    "validation",
+    "typescript",
+    "node"
+  ],
+  "homepage": "https://github.com/wipsquare/vies-vat-check#readme",
+  "bugs": {
+    "url": "https://github.com/wipsquare/vies-vat-check/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wipsquare/vies-vat-check.git"
+  },
+  "license": "MIT",
+  "author": "wipsquare",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run build",
+    "test": "node --test dist/test/**/*.test.js",
+    "prepublishOnly": "npm run clean && npm run check && npm run test"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^6.0.2"
+  }
+}
