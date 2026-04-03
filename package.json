@@ -1,6 +1,6 @@
 {
   "name": "@wipsquare/vies-vat-check",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TypeScript client for validating EU VAT numbers with the VIES API.",
   "keywords": [
     "vat",
