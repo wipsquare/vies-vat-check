@@ -284,7 +284,7 @@ test('retries use exponential backoff', async () => {
   }
 });
 
-test('retry works with checkStatus', async () => {
+test('does retry work with checkStatus', async () => {
   const originalFetch = globalThis.fetch;
   let callCount = 0;
 
