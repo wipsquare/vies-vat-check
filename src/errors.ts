@@ -1,9 +1,10 @@
 // src/errors.ts
 
 export class ViesError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = 'ViesError';
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
@@ -25,12 +26,9 @@ export class ViesHttpError extends ViesError {
 }
 
 export class ViesNetworkError extends ViesError {
-  public readonly cause: unknown;
-
   constructor(message = 'VIES network request failed', cause?: unknown) {
-    super(message);
+    super(message, { cause });
     this.name = 'ViesNetworkError';
-    this.cause = cause;
   }
 }
 

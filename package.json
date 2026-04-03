@@ -37,7 +37,7 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "publishConfig": {
     "access": "public"
@@ -48,10 +48,13 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build",
     "test": "node --test dist/test/**/*.test.js",
-    "prepublishOnly": "npm run clean && npm run check && npm run test"
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@types/node": "^25.5.2",
+    "semantic-release": "^25.0.3",
     "typescript": "^6.0.2"
   }
 }

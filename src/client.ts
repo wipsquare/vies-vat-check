@@ -5,12 +5,15 @@ import {
   ViesResponseError,
   ViesTimeoutError
 } from './errors.js';
+import { withRetry } from './retry.js';
 
 export type ViesMode = 'prod' | 'test';
 
 export interface ViesClientConfig {
   mode?: ViesMode;
   timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
 }
 
 export interface ViesApiRequest {
@@ -68,6 +71,19 @@ const ENDPOINTS: Record<ViesMode, string> = {
 export async function postCheckVat(
   input: ViesApiRequest,
   config: ViesClientConfig = {}
+): Promise<ViesApiResponse> {
+  const retries = config.retries ?? 0;
+  const retryDelayMs = config.retryDelayMs ?? 500;
+
+  return withRetry(() => executeCheckVat(input, config), {
+    retries,
+    retryDelayMs
+  });
+}
+
+async function executeCheckVat(
+  input: ViesApiRequest,
+  config: ViesClientConfig
 ): Promise<ViesApiResponse> {
   const mode = config.mode ?? 'prod';
   const timeoutMs = config.timeoutMs ?? 10_000;

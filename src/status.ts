@@ -6,7 +6,8 @@ import {
   ViesResponseError,
   ViesTimeoutError
 } from './errors.js';
-import type { ViesClientConfig, ViesMode } from './client.js';
+import { withRetry } from './retry.js';
+import type { ViesClientConfig } from './client.js';
 
 export interface CountryStatus {
   countryCode: string;
@@ -18,22 +19,38 @@ export interface CheckStatusResult {
   countries: CountryStatus[];
 }
 
-const STATUS_ENDPOINTS: Record<ViesMode, string> = {
-  prod: 'https://ec.europa.eu/taxation_customs/vies/rest-api/check-status',
-  test: 'https://ec.europa.eu/taxation_customs/vies/rest-api/check-status'
-};
+// VIES does not provide a separate test endpoint for status checks.
+const STATUS_ENDPOINT =
+  'https://ec.europa.eu/taxation_customs/vies/rest-api/check-status';
+
+const VALID_AVAILABILITIES = new Set<string>([
+  'Available',
+  'Unavailable',
+  'Monitoring Disabled'
+]);
 
 export async function getCheckStatus(
   config: ViesClientConfig = {}
 ): Promise<CheckStatusResult> {
-  const mode = config.mode ?? 'prod';
+  const retries = config.retries ?? 0;
+  const retryDelayMs = config.retryDelayMs ?? 500;
+
+  return withRetry(() => executeCheckStatus(config), {
+    retries,
+    retryDelayMs
+  });
+}
+
+async function executeCheckStatus(
+  config: ViesClientConfig
+): Promise<CheckStatusResult> {
   const timeoutMs = config.timeoutMs ?? 10_000;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(STATUS_ENDPOINTS[mode], {
+    const response = await fetch(STATUS_ENDPOINT, {
       method: 'GET',
       headers: {
         accept: 'application/json'
@@ -67,19 +84,16 @@ function parseStatusResponse(value: unknown): CheckStatusResult {
     throw new ViesResponseError('Invalid status response from VIES API');
   }
 
-  const root = value as {
-    vow?: {
-      available?: unknown;
-      countries?: unknown;
-    };
-  };
+  const root = value as { vow?: { available?: unknown; countries?: unknown } };
 
   if (!root.vow || typeof root.vow !== 'object') {
     throw new ViesResponseError('VIES status response is missing vow');
   }
 
   if (typeof root.vow.available !== 'boolean') {
-    throw new ViesResponseError('VIES status response is missing available boolean');
+    throw new ViesResponseError(
+      'VIES status response is missing available boolean'
+    );
   }
 
   const countriesRaw = root.vow.countries;
@@ -88,33 +102,34 @@ function parseStatusResponse(value: unknown): CheckStatusResult {
     throw new ViesResponseError('VIES status response has invalid countries');
   }
 
-  const countries: CountryStatus[] = (countriesRaw ?? []).map((item) => {
-    if (!item || typeof item !== 'object') {
-      throw new ViesResponseError('Invalid country status entry');
+  const countries: CountryStatus[] = (countriesRaw ?? []).map(
+    (item: unknown) => {
+      if (!item || typeof item !== 'object') {
+        throw new ViesResponseError('Invalid country status entry');
+      }
+
+      const entry = item as {
+        countryCode?: unknown;
+        availability?: unknown;
+      };
+
+      if (
+        typeof entry.countryCode !== 'string' ||
+        typeof entry.availability !== 'string'
+      ) {
+        throw new ViesResponseError('Invalid country status entry');
+      }
+
+      if (!VALID_AVAILABILITIES.has(entry.availability)) {
+        throw new ViesResponseError('Invalid country availability value');
+      }
+
+      return {
+        countryCode: entry.countryCode,
+        availability: entry.availability as CountryStatus['availability']
+      };
     }
-
-    const entry = item as {
-      countryCode?: unknown;
-      availability?: unknown;
-    };
-
-    if (typeof entry.countryCode !== 'string' || typeof entry.availability !== 'string') {
-      throw new ViesResponseError('Invalid country status entry');
-    }
-
-    if (
-      entry.availability !== 'Available' &&
-      entry.availability !== 'Unavailable' &&
-      entry.availability !== 'Monitoring Disabled'
-    ) {
-      throw new ViesResponseError('Invalid country availability value');
-    }
-
-    return {
-      countryCode: entry.countryCode,
-      availability: entry.availability
-    };
-  });
+  );
 
   return {
     available: root.vow.available,

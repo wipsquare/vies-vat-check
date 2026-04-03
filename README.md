@@ -17,6 +17,7 @@ npm install @wipsquare/vies-vat-check
 - Validate EU VAT numbers with VIES
 - Pass VAT input either as separate country/code values or as a full VAT string
 - Switch between production and test mode with a configured client
+- Automatic retries with exponential backoff
 - Check VIES service status
 - Typed errors
 - TypeScript support included
@@ -88,6 +89,25 @@ const result = await vies.checkVat({
 
 console.log(result);
 ```
+
+### Retry on failure
+
+```ts
+import { createViesClient } from '@wipsquare/vies-vat-check';
+
+const vies = createViesClient({
+  retries: 2,
+  retryDelayMs: 500
+});
+
+const result = await vies.checkVat({
+  vatNumber: 'RO47366939'
+});
+
+console.log(result);
+```
+
+This retries up to 2 times with exponential backoff: 500ms after the first failure, 1000ms after the second. Retries apply to timeouts, network errors, and 5xx responses. Client errors (4xx) and malformed responses are not retried.
 
 ### Check VIES service status
 
@@ -195,8 +215,10 @@ Creates a configured VIES client.
 
 ```ts
 {
-  mode?: 'prod' | 'test';
-  timeoutMs?: number;
+  mode?: 'prod' | 'test';   // default: 'prod'
+  timeoutMs?: number;        // default: 10000
+  retries?: number;          // default: 0 (no retries)
+  retryDelayMs?: number;     // default: 500
 }
 ```
 
@@ -216,22 +238,26 @@ Creates a configured VIES client.
 - when using the full VAT format, the first two characters are treated as the country code
 - some fields such as `name`, `address`, and trader details depend on what VIES returns for that VAT number and country
 - the package returns the country code, not a full country name
+- retries use exponential backoff: `retryDelayMs * 2^attempt` (e.g. 500ms, 1000ms, 2000ms)
+- retries apply to timeouts, network errors, and 5xx HTTP responses
+- 4xx responses and malformed responses are not retried
 
 ## Errors
 
 The package can throw these error types:
 
-- `ViesError`
-- `ViesHttpError`
-- `ViesNetworkError`
-- `ViesResponseError`
-- `ViesTimeoutError`
+- `ViesError` — base class for all errors
+- `ViesHttpError` — non-2xx response from VIES (exposes `.status`)
+- `ViesNetworkError` — fetch failed (exposes `.cause`)
+- `ViesResponseError` — response body could not be parsed
+- `ViesTimeoutError` — request exceeded `timeoutMs`
 
-Example:
+All errors extend `ViesError`, so you can catch broadly or narrowly:
 
 ```ts
 import {
   checkVat,
+  ViesError,
   ViesHttpError,
   ViesTimeoutError
 } from '@wipsquare/vies-vat-check';
@@ -245,8 +271,10 @@ try {
     console.error('Request timed out');
   } else if (error instanceof ViesHttpError) {
     console.error(`HTTP error: ${error.status}`);
+  } else if (error instanceof ViesError) {
+    console.error('VIES error:', error.message);
   } else {
-    console.error(error);
+    throw error;
   }
 }
 ```
